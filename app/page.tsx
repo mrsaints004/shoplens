@@ -1,69 +1,200 @@
-import Image from "next/image";
+"use client";
+
+import { useShopStore } from "@/lib/store";
+import { CATEGORIES } from "@/lib/products";
+import WebMCPProvider from "@/components/WebMCPProvider";
+import SearchBar from "@/components/SearchBar";
+import ProductGrid from "@/components/ProductGrid";
+import ProductDetail from "@/components/ProductDetail";
+import CartPanel from "@/components/CartPanel";
+import ComparisonTable from "@/components/ComparisonTable";
+import ReviewsPanel from "@/components/ReviewsPanel";
+import DealsPanel from "@/components/DealsPanel";
+import ActivityLog from "@/components/ActivityLog";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShoppingCart } from "lucide-react";
 
 export default function Home() {
+  const selectedProduct = useShopStore((s) => s.selectedProduct);
+  const cart = useShopStore((s) => s.cart);
+  const activeCategory = useShopStore((s) => s.activeCategory);
+  const setActiveCategory = useShopStore((s) => s.setActiveCategory);
+  const setSelectedProduct = useShopStore((s) => s.setSelectedProduct);
+  const searchProducts = useShopStore((s) => s.searchProducts);
+  const searchQuery = useShopStore((s) => s.searchQuery);
+  const rightPanel = useShopStore((s) => s.rightPanel);
+  const setRightPanel = useShopStore((s) => s.setRightPanel);
+
+  const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
+
+  function handleCategoryClick(cat: string) {
+    const newCat = activeCategory === cat ? null : cat;
+    setActiveCategory(newCat);
+    searchProducts(searchQuery, newCat);
+    setSelectedProduct(null);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <WebMCPProvider>
+      <div className="flex flex-col h-screen overflow-hidden">
+        {/* Header */}
+        <header className="flex items-center justify-between px-5 py-3 border-b bg-card shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-lg">
+                🛍️
+              </div>
+              <h1 className="text-base font-semibold tracking-tight">
+                ShopLens
+              </h1>
+            </div>
+            <Badge
+              variant="secondary"
+              className="text-[10px] font-medium px-2 py-0"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              WebMCP
+            </Badge>
+          </div>
+
+          <div className="flex-1 max-w-lg mx-6 hidden md:block">
+            <SearchBar />
+          </div>
+
+          <button
+            onClick={() => setRightPanel("cart")}
+            className="flex items-center gap-1.5 text-sm hover:text-primary transition-colors"
+          >
+            <ShoppingCart className="h-5 w-5" />
+            {cartCount > 0 && (
+              <Badge className="text-[10px] px-1.5 py-0 min-w-[18px] text-center">
+                {cartCount}
+              </Badge>
+            )}
+          </button>
+        </header>
+
+        {/* Mobile search (visible on small screens) */}
+        <div className="md:hidden px-4 py-2 border-b bg-card">
+          <SearchBar />
+        </div>
+
+        {/* Main content */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left sidebar — Categories */}
+          <aside className="w-44 border-r flex flex-col bg-card shrink-0 overflow-hidden hidden lg:flex">
+            <div className="p-3 space-y-1 overflow-y-auto flex-1">
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                Categories
+              </h3>
+              <button
+                onClick={() => {
+                  setActiveCategory(null);
+                  searchProducts(searchQuery, null);
+                  setSelectedProduct(null);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                  activeCategory === null
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "hover:bg-accent"
+                }`}
+              >
+                All Products
+              </button>
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryClick(cat)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                    activeCategory === cat
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "hover:bg-accent"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {/* Center — Product Grid or Detail */}
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+            <div className="flex-1 overflow-y-auto">
+              {selectedProduct ? <ProductDetail /> : <ProductGrid />}
+            </div>
+          </main>
+
+          {/* Right sidebar — Cart / Compare / Reviews / Deals */}
+          <aside className="w-80 border-l flex flex-col shrink-0 overflow-hidden bg-card hidden md:flex">
+            <Tabs
+              value={rightPanel}
+              onValueChange={(v) =>
+                setRightPanel(v as typeof rightPanel)
+              }
+              className="flex flex-col h-full overflow-hidden"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <div className="px-3 pt-3 pb-2 shrink-0">
+                <TabsList className="w-full">
+                  <TabsTrigger value="cart" className="flex-1 text-xs">
+                    Cart{cartCount > 0 ? ` (${cartCount})` : ""}
+                  </TabsTrigger>
+                  <TabsTrigger value="compare" className="flex-1 text-xs">
+                    Compare
+                  </TabsTrigger>
+                  <TabsTrigger value="reviews" className="flex-1 text-xs">
+                    Reviews
+                  </TabsTrigger>
+                  <TabsTrigger value="deals" className="flex-1 text-xs">
+                    Deals
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent
+                value="cart"
+                className="flex-1 overflow-y-auto m-0"
+              >
+                <CartPanel />
+              </TabsContent>
+              <TabsContent
+                value="compare"
+                className="flex-1 overflow-y-auto m-0"
+              >
+                <ComparisonTable />
+              </TabsContent>
+              <TabsContent
+                value="reviews"
+                className="flex-1 overflow-y-auto m-0"
+              >
+                <ReviewsPanel />
+              </TabsContent>
+              <TabsContent
+                value="deals"
+                className="flex-1 overflow-y-auto m-0"
+              >
+                <DealsPanel />
+              </TabsContent>
+            </Tabs>
+          </aside>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Bottom — Activity Log */}
+        <div className="h-36 border-t bg-card flex flex-col shrink-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-1.5 border-b bg-muted/30 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                Activity Log
+              </h3>
+            </div>
+            <Badge variant="outline" className="text-[10px] font-normal">
+              WebMCP Tool Calls
+            </Badge>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <ActivityLog />
+          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </WebMCPProvider>
   );
 }
