@@ -7,13 +7,14 @@ declare global {
   interface Document {
     modelContext?: {
       registerTool: (
-        name: string,
-        definition: {
+        tool: {
+          name: string;
           description: string;
-          parameters: Record<string, unknown>;
+          inputSchema: Record<string, unknown>;
+          execute: (args: Record<string, unknown>) => Promise<unknown>;
         },
-        handler: (args: Record<string, unknown>) => unknown
-      ) => { unregister: () => void };
+        options?: { signal?: AbortSignal }
+      ) => Promise<void>;
     };
   }
 }
@@ -31,41 +32,40 @@ export default function WebMCPProvider({
       return;
     }
 
+    const controller = new AbortController();
     const tools = getToolDefinitions();
-    const cleanupFns: Array<{ unregister: () => void }> = [];
+    let registered = 0;
 
-    for (const tool of tools) {
-      try {
-        const registration = document.modelContext.registerTool(
-          tool.name,
-          {
-            description: tool.description,
-            parameters: tool.parameters,
-          },
-          (args: Record<string, unknown>) => {
-            try {
-              return tool.execute(args);
-            } catch (err) {
-              return { error: String(err) };
-            }
-          }
-        );
-        cleanupFns.push(registration);
-      } catch {
-        // Tool registration failed, continue with others
-      }
-    }
-
-    setStatus(cleanupFns.length > 0 ? "connected" : "unavailable");
-
-    return () => {
-      for (const fn of cleanupFns) {
+    async function registerAll() {
+      for (const tool of tools) {
         try {
-          fn.unregister();
+          await document.modelContext!.registerTool(
+            {
+              name: tool.name,
+              description: tool.description,
+              inputSchema: tool.inputSchema,
+              execute: async (args: Record<string, unknown>) => {
+                try {
+                  return await tool.execute(args);
+                } catch (err) {
+                  return { error: String(err) };
+                }
+              },
+            },
+            { signal: controller.signal }
+          );
+          registered++;
         } catch {
-          // cleanup failure is non-critical
+          // Tool registration failed, continue with others
         }
       }
+      setStatus(registered > 0 ? "connected" : "unavailable");
+    }
+
+    registerAll();
+
+    return () => {
+      controller.abort();
     };
   }, []);
 

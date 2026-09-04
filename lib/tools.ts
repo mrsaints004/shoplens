@@ -1,11 +1,11 @@
 import { useShopStore } from "./store";
 import { products as allProducts, reviews as allReviews, deals as allDeals, type Product } from "./products";
 
-type ToolDef = {
+export type ToolDef = {
   name: string;
   description: string;
-  parameters: Record<string, unknown>;
-  execute: (args: Record<string, unknown>) => unknown;
+  inputSchema: Record<string, unknown>;
+  execute: (args: Record<string, unknown>) => Promise<unknown>;
 };
 
 function log(tool: string, args: string, result: string) {
@@ -24,7 +24,7 @@ export function getToolDefinitions(): ToolDef[] {
       name: "search_products",
       description:
         "Search for products by keyword, category, price range, and minimum rating. Returns matching products with name, price, rating, and availability.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           query: { type: "string", description: "Search keyword (matches name, brand, description, tags)" },
@@ -34,7 +34,7 @@ export function getToolDefinitions(): ToolDef[] {
           min_rating: { type: "number", description: "Minimum rating (1-5)" },
         },
       },
-      execute: (args) => {
+      execute: async (args) => {
         const store = useShopStore.getState();
         const results = store.searchProducts(
           args.query as string || "",
@@ -70,14 +70,14 @@ export function getToolDefinitions(): ToolDef[] {
       name: "get_product",
       description:
         "Get full details for a single product by ID, including specs, description, and stock status.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "The product ID (e.g. 'lap-01', 'hp-03')" },
         },
         required: ["product_id"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const product = allProducts.find((p) => p.id === args.product_id);
         if (!product) {
           log("get_product", `id:${args.product_id}`, "not found");
@@ -94,7 +94,7 @@ export function getToolDefinitions(): ToolDef[] {
       name: "compare_products",
       description:
         "Compare 2-4 products side-by-side. Renders a comparison table in the UI showing specs, prices, and ratings.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           product_ids: {
@@ -105,7 +105,7 @@ export function getToolDefinitions(): ToolDef[] {
         },
         required: ["product_ids"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const ids = args.product_ids as string[];
         if (ids.length < 2 || ids.length > 4) {
           return { error: "Please provide 2-4 product IDs to compare" };
@@ -147,14 +147,14 @@ export function getToolDefinitions(): ToolDef[] {
       name: "get_reviews",
       description:
         "Get reviews for a product. Shows reviews in the UI panel. Returns reviews with ratings and average sentiment.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "The product ID" },
         },
         required: ["product_id"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const productId = args.product_id as string;
         const product = allProducts.find((p) => p.id === productId);
         if (!product) {
@@ -191,7 +191,7 @@ export function getToolDefinitions(): ToolDef[] {
       name: "find_similar",
       description:
         "Find products similar to a given product — same category, similar price range and features.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "The product ID to find similar products for" },
@@ -199,7 +199,7 @@ export function getToolDefinitions(): ToolDef[] {
         },
         required: ["product_id"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const productId = args.product_id as string;
         const product = allProducts.find((p) => p.id === productId);
         if (!product) {
@@ -209,7 +209,6 @@ export function getToolDefinitions(): ToolDef[] {
         const sameCat = allProducts.filter(
           (p) => p.category === product.category && p.id !== product.id
         );
-        // Score by price proximity and shared tags
         const scored = sameCat.map((p) => {
           const priceDiff = Math.abs(p.price - product.price) / product.price;
           const sharedTags = p.tags.filter((t) => product.tags.includes(t)).length;
@@ -238,7 +237,7 @@ export function getToolDefinitions(): ToolDef[] {
       name: "add_to_cart",
       description:
         "Add a product to the shopping cart with a specified quantity. Updates the cart UI.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "The product ID to add" },
@@ -246,7 +245,7 @@ export function getToolDefinitions(): ToolDef[] {
         },
         required: ["product_id"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const productId = args.product_id as string;
         const product = allProducts.find((p) => p.id === productId);
         if (!product) {
@@ -275,14 +274,14 @@ export function getToolDefinitions(): ToolDef[] {
     {
       name: "remove_from_cart",
       description: "Remove a product from the shopping cart by product ID.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           product_id: { type: "string", description: "The product ID to remove" },
         },
         required: ["product_id"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const productId = args.product_id as string;
         const store = useShopStore.getState();
         const item = store.cart.find((i) => i.product.id === productId);
@@ -301,11 +300,11 @@ export function getToolDefinitions(): ToolDef[] {
       name: "get_cart",
       description:
         "Get current shopping cart contents, including items, quantities, subtotal, applied discounts, and total.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {},
       },
-      execute: () => {
+      execute: async () => {
         const store = useShopStore.getState();
         const { subtotal, discount, total } = store.getCartTotal();
         store.setRightPanel("cart");
@@ -337,13 +336,13 @@ export function getToolDefinitions(): ToolDef[] {
       name: "check_deals",
       description:
         "Find available deals and coupons. Can filter by category or show deals applicable to current cart.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           category: { type: "string", description: "Filter deals by category (optional)" },
         },
       },
-      execute: (args) => {
+      execute: async (args) => {
         const category = args.category as string | undefined;
         let applicableDeals = allDeals;
         if (category) {
@@ -366,14 +365,14 @@ export function getToolDefinitions(): ToolDef[] {
       name: "apply_deal",
       description:
         "Apply a coupon code to the shopping cart. Validates the code and applies the discount.",
-      parameters: {
+      inputSchema: {
         type: "object",
         properties: {
           code: { type: "string", description: "The coupon code to apply" },
         },
         required: ["code"],
       },
-      execute: (args) => {
+      execute: async (args) => {
         const code = (args.code as string).toUpperCase();
         const deal = allDeals.find((d) => d.code === code);
         if (!deal) {
@@ -388,7 +387,6 @@ export function getToolDefinitions(): ToolDef[] {
             error: `Minimum purchase of $${deal.minPurchase} required for code "${code}". Current subtotal: $${subtotal.toFixed(2)}`,
           };
         }
-        // Check if cart has items from applicable categories
         const cartCategories = new Set(store.cart.map((i) => i.product.category));
         const hasApplicable = deal.applicableCategories.some((c) => cartCategories.has(c));
         if (!hasApplicable && store.cart.length > 0) {
