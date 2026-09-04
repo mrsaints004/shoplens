@@ -62,23 +62,32 @@ The `WebMCPProvider` component (wrapping the entire app) runs on mount:
 useEffect(() => {
   if (!("modelContext" in document) || !document.modelContext) return;
 
+  const controller = new AbortController();
   const tools = getToolDefinitions(); // 10 tools from lib/tools.ts
 
   for (const tool of tools) {
     document.modelContext.registerTool(
-      tool.name,
-      { description: tool.description, parameters: tool.parameters },
-      (args) => tool.execute(args) // Handler returns data to the AI
+      {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        execute: async (args) => tool.execute(args),
+      },
+      { signal: controller.signal }
     );
   }
+
+  return () => controller.abort(); // Unregister all tools on unmount
 }, []);
 ```
 
-Each tool has:
+Each tool is a single `ModelContextTool` object with:
 - **name** -- identifier the AI uses to call it
 - **description** -- natural language explanation so the AI knows when to use it
-- **parameters** -- JSON Schema describing accepted arguments
-- **execute** -- function that runs in the browser, manipulates state, returns results
+- **inputSchema** -- JSON Schema describing accepted arguments
+- **execute** -- async function that runs in the browser, manipulates state, returns results
+
+Cleanup uses an `AbortController` signal -- calling `controller.abort()` unregisters all tools.
 
 ### Feature Detection
 
@@ -350,9 +359,48 @@ No environment variables are needed. No backend is required.
 
 ---
 
-## Testing with ChatGPT
+## Testing
 
-1. Deploy the app to a public URL
+### Option A: Chrome with WebMCP Flag (no ChatGPT account needed)
+
+1. Update Chrome to version 146+
+2. Navigate to `chrome://flags/#enable-webmcp-testing` and set to **Enabled**
+3. Relaunch Chrome
+4. Run `npm run dev` and open `http://localhost:3000`
+5. Open DevTools Console and verify tools are registered:
+
+```js
+const tools = await document.modelContext.getTools()
+console.log(tools) // Array of 10 tools
+```
+
+6. Call tools from the console to simulate an AI agent:
+
+```js
+const t = name => tools.find(x => x.name === name)
+
+// Search for laptops
+await document.modelContext.executeTool(t("search_products"), JSON.stringify({ category: "Laptops" }))
+
+// Compare products
+await document.modelContext.executeTool(t("compare_products"), JSON.stringify({ product_ids: ["lap-01", "lap-02", "lap-03"] }))
+
+// Get reviews
+await document.modelContext.executeTool(t("get_reviews"), JSON.stringify({ product_id: "lap-01" }))
+
+// Add to cart
+await document.modelContext.executeTool(t("add_to_cart"), JSON.stringify({ product_id: "lap-01" }))
+
+// Check deals and apply coupon
+await document.modelContext.executeTool(t("check_deals"), JSON.stringify({ category: "Laptops" }))
+await document.modelContext.executeTool(t("apply_deal"), JSON.stringify({ code: "TECH20" }))
+```
+
+Each call updates the UI and appears in the Activity Log at the bottom of the page.
+
+### Option B: ChatGPT In-App Browser
+
+1. Deploy the app to a public URL (e.g. Vercel)
 2. Open ChatGPT (Plus or Pro plan with browsing enabled)
 3. Paste the URL into the chat
 4. Ask the AI to interact with the store

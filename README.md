@@ -103,6 +103,24 @@ lib/
 
 ## Demo
 
+### Option A: Chrome with WebMCP flag (no ChatGPT account needed)
+
+1. Update Chrome to version 146+
+2. Go to `chrome://flags/#enable-webmcp-testing` and set to **Enabled**
+3. Relaunch Chrome
+4. Run `npm run dev` and open `http://localhost:3000`
+5. Open DevTools Console and run:
+   ```js
+   const tools = await document.modelContext.getTools()  // 10 tools
+   await document.modelContext.executeTool(
+     tools.find(t => t.name === "search_products"),
+     JSON.stringify({ category: "Laptops" })
+   )
+   ```
+6. Watch the UI update and the Activity Log record the call
+
+### Option B: ChatGPT in-app browser
+
 1. Deploy to Vercel
 2. Open ChatGPT (Plus/Pro with browsing enabled)
 3. Paste your Vercel URL and ask: *"I need wireless headphones under $200. Compare a few options and find me the best deal."*
